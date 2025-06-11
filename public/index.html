@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Upload System - MySQL</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+        }
+        .upload-zone {
+            border: 3px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 3rem;
+            text-align: center;
+            background-color: white;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .upload-zone:hover {
+            border-color: #667eea;
+            background-color: #f8f9ff;
+        }
+        .upload-zone.dragover {
+            border-color: #667eea;
+            background-color: #f0f3ff;
+        }
+        .stats-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 1rem;
+        }
+        .file-item {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            border-left: 4px solid #28a745;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .progress-bar {
+            height: 8px;
+            border-radius: 4px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .status-completed { background-color: #d4edda; color: #155724; }
+        .status-error { background-color: #f8d7da; color: #721c24; }
+        .status-processing { background-color: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1><i class="fas fa-database me-3"></i>Sistema de Carga CSV</h1>
+                    <p class="mb-0">Gestión de datos con MySQL y phpMyAdmin</p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="d-flex align-items-center justify-content-end">
+                        <div class="me-3">
+                            <small>Estado de conexión:</small><br>
+                            <span class="badge bg-success" id="connectionStatus">
+                                <i class="fas fa-check-circle"></i> Conectado
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mt-4">
+        <!-- Estadísticas -->
+        <div class="row mb-4">
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h3 class="text-primary" id="totalRecords">0</h3>
+                    <small class="text-muted">Total de Registros</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h3 class="text-info" id="totalFiles">0</h3>
+                    <small class="text-muted">Archivos Subidos</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h3 class="text-success" id="completedUploads">0</h3>
+                    <small class="text-muted">Exitosos</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h3 class="text-danger" id="failedUploads">0</h3>
+                    <small class="text-muted">Fallidos</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <h3 class="text-warning" id="somatometriaRecords">0</h3>
+                    <small class="text-muted">Somatometría</small>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stats-card text-center">
+                    <button class="btn btn-sm btn-outline-primary mb-1" onclick="viewSomatometriaData()">
+                        <i class="fas fa-eye"></i> Ver Datos
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="clearDatabase()">
+                        <i class="fas fa-trash"></i> Limpiar BD
+                    </button>
+                    <small class="text-muted d-block mt-1">Administración</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Zona de subida -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-cloud-upload-alt me-2"></i>Subir Archivos CSV</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="upload-zone" id="uploadZone">
+                            <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                            <h5>Arrastra tus archivos CSV aquí</h5>
+                            <p class="text-muted">o haz clic para seleccionar archivos</p>
+                            <input type="file" id="fileInput" accept=".csv" multiple style="display: none;">
+                            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                                <i class="fas fa-folder-open me-2"></i>Seleccionar Archivos
+                            </button>
+                            <small class="d-block mt-2 text-muted">Máximo 10MB por archivo</small>
+                        </div>
+
+                        <!-- Lista de archivos seleccionados -->
+                        <div id="fileList" class="mt-3"></div>
+
+                        <!-- Botones de acción -->
+                        <div class="mt-3 text-end" id="actionButtons" style="display: none;">
+                            <button class="btn btn-outline-secondary me-2" onclick="clearFiles()">
+                                <i class="fas fa-trash me-1"></i>Limpiar Todo
+                            </button>
+                            <button class="btn btn-primary" onclick="uploadFiles()">
+                                <i class="fas fa-upload me-1"></i>Subir Archivos
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel de información -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-info-circle me-2"></i>Información de la Base de Datos</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h6><i class="fas fa-table me-2"></i>Estructura de Tablas</h6>
+                            <small class="text-muted">
+                                • <strong>file_uploads:</strong> Metadatos de archivos<br>
+                                • <strong>somatometria:</strong> Datos específicos de somatometría<br>
+                                • <strong>table_columns:</strong> Definiciones de columnas<br>
+                                • <strong>csv_data:</strong> Datos CSV genéricos
+                            </small>
+                        </div>
+                        <div class="mb-3">
+                            <h6><i class="fas fa-cogs me-2"></i>Características</h6>
+                            <small class="text-muted">
+                                • Detección automática de tipos<br>
+                                • Validación de datos<br>
+                                • Manejo de errores<br>
+                                • Mapeo de columnas automático
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actividad reciente -->
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h5><i class="fas fa-clock me-2"></i>Actividad Reciente</h5>
+                    </div>
+                    <div class="card-body" id="recentActivity">
+                        <p class="text-muted text-center">No hay actividad reciente</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de uploads recientes -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-history me-2"></i>Historial de Subidas</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="uploadsTable">
+                        <thead>
+                            <tr>
+                                <th>Archivo</th>
+                                <th>Tabla</th>
+                                <th>Filas</th>
+                                <th>Estado</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">No hay datos disponibles</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
